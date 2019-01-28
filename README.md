@@ -18,7 +18,11 @@ $ celery -A tasks worker -l info -P eventlet
 ```
 ### Starting the server:
 ```
-$ python -m server.py
+$ python3 -m server
+```
+### Run flake8:
+```bash
+python3.6 -m flake8 --max-line-length 120 ./
 ```
 ### Example:
 ```
@@ -27,5 +31,5 @@ $ python -m server.py
 >>> curl -X GET http://localhost:8000/check?id=0e4fac17-f367-4807-8c28-8a059a2f82ac
 {"status":"running"}
 >>> curl -X GET http://localhost:8000/check?id=0e4fac17-f367-4807-8c28-8a059a2f82ac
-{"md5":"f4afe93ad799484b1d512cc20e93efd1","status":"done","url":"http://site.com/file.txt"}
+{"md5":"f4afe93ad799484b1d512cc20e93efd1","status":"SUCCESS","url":"http://site.com/file.txt"}
 ```

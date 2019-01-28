@@ -1,9 +1,12 @@
+import os
+
+from celery import states
 from flask import Flask, jsonify, request
-from tasks import calc_md5_hash_of_remote_file
-from config import PORT
+from tasks import calculate_md5_hash
+from config import PORT, DOWNLOAD_PATH
 
 
-#init Flask app
+# init Flask app
 app = Flask(__name__)
 app.config.update(
     CELERY_BROKER_URL='redis://localhost:6379',
@@ -11,33 +14,53 @@ app.config.update(
 )
 
 
-#routing POST /submit
-
 @app.route('/submit', methods=['POST'])
-def post_metod_process():
+def submit():
+    """ Adds a new task to the hash generation queue
+
+    Returns:
+        str: Task's id
+    """
     url = request.form.get('url')
     email = request.form.get('email')
-    id = calc_md5_hash_of_remote_file.delay(url, email)
-    return str('{"id":"' + str(id) + '"}')
+    task_id = calculate_md5_hash.delay(url, email)
+    return jsonify({'id': str(task_id)})
 
-
-#routing GET /check
 
 @app.route('/check', methods=['GET'])
-def get_method_process():
+def check():
+    """ Check state of task
+
+    Returns:
+        str: result of processed task
+    """
+
     task_id = request.args.get('id')
-    result = calc_md5_hash_of_remote_file.AsyncResult(task_id)
-    state = result.state
-    if state == 'SUCCESS':
-        task_status = '{"md5":"'+result.get()[0]+'", ' + '"status":"done", ' + '"url":"'+result.get()[1]+'"}'
-    elif state == "PENDING":
-        return 'task does not exist',404
-    elif state == "STARTED":
-        task_status = '{"status":"running"}'
-    elif state == "FAILURE":
-        task_status = '{"status":"failure"}'
-    return task_status
+
+    if not task_id:
+        return jsonify({'status': states.FAILURE, 'error': 'Bad task id'})
+
+    result = calculate_md5_hash.AsyncResult(task_id)
+    if not result.ready():
+        return jsonify({'status': states.STARTED})  # It may be not true, but, in general, it's ok.
+
+    try:
+        hash_value, url = result.get()
+    except ValueError as e:
+        return {'status': states.FAILURE, 'error': str(e)}
+
+    if result.successful():
+        return jsonify({'md5': hash_value[0], 'status': states.SUCCESS, 'url': hash_value})
+
+    return jsonify({'status': states.FAILURE, 'error': 'Unexpected error. Pls, contact administrator'})
 
 
+def validate_settings():
+    """ Validate settings values """
+    if not os.path.isdir(os.path.abspath(DOWNLOAD_PATH)):
+        raise ValueError('DOWNLOAD_PATH must be valid path to existing directory')
 
-app.run(debug=False, port=PORT)
+
+if __name__ == '__main__':
+    validate_settings()
+    app.run(debug=False, port=PORT)
