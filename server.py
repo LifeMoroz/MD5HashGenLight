@@ -24,7 +24,7 @@ def submit():
     url = request.form.get('url')
     email = request.form.get('email')
     task_id = calculate_md5_hash.delay(url, email)
-    return jsonify({'id': str(task_id)})
+    return jsonify({'id': str(task_id)}), 201
 
 
 @app.route('/check', methods=['GET'])
@@ -38,7 +38,7 @@ def check():
     task_id = request.args.get('id')
 
     if not task_id:
-        return jsonify({'status': states.FAILURE, 'error': 'Bad task id'})
+        return jsonify({'status': states.FAILURE, 'error': 'Bad task id'}), 404
 
     result = calculate_md5_hash.AsyncResult(task_id)
     if not result.ready():
@@ -47,12 +47,12 @@ def check():
     try:
         hash_value, url = result.get()
     except ValueError as e:
-        return {'status': states.FAILURE, 'error': str(e)}
+        return {'status': states.FAILURE, 'error': str(e)}, 400
 
     if result.successful():
         return jsonify({'md5': hash_value[0], 'status': states.SUCCESS, 'url': hash_value})
 
-    return jsonify({'status': states.FAILURE, 'error': 'Unexpected error. Pls, contact administrator'})
+    return jsonify({'status': states.FAILURE, 'error': 'Unexpected error. Pls, contact administrator'}), 500
 
 
 def validate_settings():
